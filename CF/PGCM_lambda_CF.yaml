@@ -1,0 +1,942 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  S3Bucket:
+    Default: pgcm
+    Description: S3 Bucket the hold the PGCM ZIP file 
+    Type: String
+    AllowedPattern: .*
+  S3Key:
+    Default: pgcm_<Version Number>.zip
+    Description: PGCM ZIP file name
+    Type: String
+    AllowedPattern: .*          
+  DBInstanceIdentifier:
+    Default: <DB Instance Identifier>
+    Description: Please enter The Database Instance Identifier
+    Type: String
+    AllowedPattern: .*
+  DBResourceID:
+    Default: DB-xxxxx
+    Description: Please enter the Database Resource ID if you selected IAM DB Authentication type
+    Type: String
+    AllowedPattern: .*  
+  DatabaseUser:
+    Default: user_pgcm
+    Description: the DB user name that will be used by PGCM to connect to the PG DB [default user name user_pgcm]
+    Type: String
+    AllowedPattern: .*
+  DBEndpoint:
+    Default: my-db.XXXXXX.<region>.rds.amazonaws.com
+    Description: The Database Endpoint 
+    Type: String
+    AllowedPattern: .*
+  DBPort:
+    Default: 5432
+    Description: Database Port
+    Type: Number
+    MinValue: 1024
+    MaxValue: 65535
+  DatabaseName:
+    Default: Databas Name
+    Description: The Database Name that PGCM will connect to 
+    Type: String
+    AllowedPattern: .*
+  AuthenticationType:
+    Default: iamdb
+    Description: Please select the Authentication Type [ iamdb or secret_manager or password ]
+    Type: String
+    AllowedValues:
+      - iamdb
+      - secret_manager
+      - password
+  Password:
+    Default: N/A
+    Description: Please enter the DB user password if you select password or secret_manager for the Authentication type
+    Type: String
+    AllowedPattern: .*
+  LambdaVPCID:
+    Description: Choose which VPC the Lambda-functions should be deployed to  
+    Type: AWS::EC2::VPC::Id   
+  LambdaSecurityGroupID:
+    Description: Select the Security Group to use for the Lambda-functions  
+    Type: AWS::EC2::SecurityGroup::Id
+  LambdaSubnetID:
+    Description: Choose which subnets the Lambda-functions should be deployed to 
+    Type: List<AWS::EC2::Subnet::Id>
+  SchemaList:
+    Default: ('schema_1','schema_2')
+    Description: Schema List   
+    Type: String
+    AllowedPattern: .*
+  TablesList:
+    Default: ('table_1','table_2','table_3')
+    Description: Tables list  
+    Type: String
+    AllowedPattern: .*                           
+Conditions:
+  AuthenticationTypeisSM: !Equals [ !Ref AuthenticationType, "secret_manager" ]
+  AuthenticationTypeisPW: !Equals [ !Ref AuthenticationType, "password" ]
+  AuthenticationTypeisIAMDB: !Equals [ !Ref AuthenticationType, "iamdb" ]
+  AuthenticationTypeisPwOrIamdb: !Or [ Condition: AuthenticationTypeisPW, Condition: AuthenticationTypeisIAMDB ]
+Resources:
+  LambdaFunction:
+    Type: AWS::Serverless::Function
+    Condition: AuthenticationTypeisPwOrIamdb
+    Properties:
+      FunctionName: !Sub ${DBInstanceIdentifier}_pgcm
+      Handler: pgcm.handler
+      Runtime: python3.7
+      CodeUri: 
+        Bucket: !Ref S3Bucket
+        Key: !Ref S3Key
+      MemorySize: 192
+      Timeout: 180
+      Tags:
+        Name: PGCM
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          DB_NAME: !Ref DatabaseName
+          DB_USERNAME: !Ref DatabaseUser
+          DB_PORT: !Ref DBPort
+          RDS_ENDPOINT: !Ref DBEndpoint
+          DB_INSATCNE_IDENTIFIER: !Ref DBInstanceIdentifier
+          AUTHENTICATION_TYPE: !Ref AuthenticationType
+          PASSWORD: !Ref Password
+          SCHEMA_LIST: !Ref SchemaList
+          TABLES_LIST: !Ref TablesList
+      Events:
+        Timer:
+          Type: Schedule
+          Properties:
+            Schedule: 'rate(1 minute)'
+            Enabled: true
+      VpcConfig:
+        SecurityGroupIds: 
+          - !Ref LambdaSecurityGroupID
+        SubnetIds: !Ref LambdaSubnetID          
+  LambdaExecutionRole:
+    Type: "AWS::IAM::Role"
+    Condition: AuthenticationTypeisPwOrIamdb
+    Properties:
+        RoleName: !Sub pgcm_Lambda_Role_${DBInstanceIdentifier}
+        Description: Allows pgcm Lambda functions to connect to RDS PG to collect Counter Metrics and send it to cloud watch
+        Path: "/"
+        ManagedPolicyArns:
+            - "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            -
+              Sid: "AllowLambdaServiceToAssumeRole"
+              Effect: "Allow"
+              Action:
+                - "sts:AssumeRole"
+              Principal:
+                Service:
+                  - "lambda.amazonaws.com"
+        Policies:
+          -
+            PolicyName: !Sub pgcm_Lambda_Policy_${DBInstanceIdentifier}
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                -
+                  Effect: "Allow"
+                  Action:
+                    - "cloudwatch:PutMetricData"                    
+                  Resource: "*"
+                -
+                  Effect: "Allow"
+                  Action:                
+                    - "rds-db:connect"
+                  Resource: !Join
+                              - ''
+                              - - 'arn:aws:rds-db:'
+                                - !Ref AWS::Region
+                                - ':'
+                                - !Ref 'AWS::AccountId'
+                                -  ':dbuser:'
+                                - !Ref DBResourceID
+                                - '/'
+                                - !Ref DatabaseUser
+  LambdaFunctionSM:
+    Type: AWS::Serverless::Function
+    Condition: AuthenticationTypeisSM
+    Properties:
+      FunctionName: !Sub ${DBInstanceIdentifier}_pgcm
+      Handler: pgcm.handler
+      Runtime: python3.7
+      CodeUri: 
+        Bucket: !Ref S3Bucket
+        Key: !Ref S3Key
+      MemorySize: 192
+      Timeout: 180
+      Tags:
+        Name: PGCM
+      Role: !GetAtt LambdaExecutionRoleSM.Arn
+      Environment:
+        Variables:
+          DB_NAME: !Ref DatabaseName
+          DB_USERNAME: !Ref DatabaseUser
+          DB_PORT: !Ref DBPort
+          RDS_ENDPOINT: !Ref DBEndpoint
+          DB_INSATCNE_IDENTIFIER: !Ref DBInstanceIdentifier
+          AUTHENTICATION_TYPE: !Ref AuthenticationType
+          SCHEMA_LIST: !Ref SchemaList
+          TABLES_LIST: !Ref TablesList
+          SECRET_NAME: !Sub pgcm/${DBInstanceIdentifier}
+      Events:
+        Timer:
+          Type: Schedule
+          Properties:
+            Schedule: 'rate(1 minute)'
+            Enabled: true
+      VpcConfig:
+        SecurityGroupIds: 
+          - !Ref LambdaSecurityGroupID
+        SubnetIds: !Ref LambdaSubnetID          
+  LambdaExecutionRoleSM:
+    Type: "AWS::IAM::Role"
+    Condition: AuthenticationTypeisSM
+    DependsOn: DBSecretsManagerSM
+    Properties:
+        RoleName: !Sub pgcm_Lambda_Role_${DBInstanceIdentifier}
+        Description: Allows pgcm Lambda functions to connect to RDS PG to collect Counter Metrics and send it to cloud watch
+        Path: "/"
+        ManagedPolicyArns:
+            - "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            -
+              Sid: "AllowLambdaServiceToAssumeRole"
+              Effect: "Allow"
+              Action:
+                - "sts:AssumeRole"
+              Principal:
+                Service:
+                  - "lambda.amazonaws.com"
+        Policies:
+          -
+            PolicyName: !Sub pgcm_Lambda_Policy_${DBInstanceIdentifier}
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                -
+                  Effect: "Allow"
+                  Action:
+                    - "cloudwatch:PutMetricData"                    
+                  Resource: "*"
+                -
+                  Effect: "Allow"
+                  Action:                
+                    - "secretsmanager:GetSecretValue"
+                  Resource: !Ref DBSecretsManagerSM                              
+  DBSecretsManagerSM:
+    Type: "AWS::SecretsManager::Secret"
+    Condition: AuthenticationTypeisSM
+    Properties:
+      Name: !Sub pgcm/${DBInstanceIdentifier}
+      Description: !Sub "For PGCM access to ${DBInstanceIdentifier} Database"
+      SecretString: !Sub '{"username": "${DatabaseUser}","password":"${Password}"}'                                        
+  Dashboard:
+    Type: "AWS::CloudWatch::Dashboard"
+    Properties:
+      DashboardName: !Sub ${DBInstanceIdentifier}_Database_pgcm
+      DashboardBody: !Sub |
+                        {
+                            "widgets": [
+                                {
+                                    "type": "metric",
+                                    "x": 0,
+                                    "y": 0,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "idle_in_transaction_aborted_sessions", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "active_sessions", ".", "." ],
+                                            [ ".", "idle_in_transaction_sessions", ".", "." ],
+                                            [ ".", "idle_sessions", ".", "." ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 6,
+                                    "y": 0,
+                                    "width": 6,
+                                    "height": 3,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": true,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "total_connections", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "max_connections", ".", "." ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 6,
+                                    "y": 3,
+                                    "width": 6,
+                                    "height": 3,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "invalid_indexes", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 12,
+                                    "y": 0,
+                                    "width": 6,
+                                    "height": 3,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "deadlocks", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "queries_canceled_due_to_lock_deadlocks", ".", "." ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 0,
+                                    "y": 6,
+                                    "width": 6,
+                                    "height": 3,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "queries_canceled_due_to_lock_timeouts", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 18,
+                                    "y": 0,
+                                    "width": 6,
+                                    "height": 3,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "connections_utilization", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 12,
+                                    "y": 3,
+                                    "width": 6,
+                                    "height": 3,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": true,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "Xid_Percent_Towards_Wraparound", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 12,
+                                    "y": 9,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "Inactive_replication_slot", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "Active_replication_slot", ".", "." ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "period": 60,
+                                        "title": "replication slot status"
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 6,
+                                    "y": 6,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "autovacuum_freeze_max_age", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "oldest_xid", ".", "." ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 12,
+                                    "y": 6,
+                                    "width": 6,
+                                    "height": 3,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "percent_towards_emergency_autovacuum", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "stacked": true,
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 18,
+                                    "y": 3,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "autovacuum_count_per_day", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "autovacuum_count_per_min", ".", "." ],
+                                            [ ".", "autovacuum_count_per_hour", ".", "." ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "title": "Autovacuum count per day / hour/ min",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 18,
+                                    "y": 9,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "autoanalyze_count_per_day", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "autoanalyze_count_per_hour", ".", "." ],
+                                            [ ".", "autoanalyze_count_per_min", ".", "." ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "title": "autoanalyze count per day / hour / min",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 0,
+                                    "y": 9,
+                                    "width": 6,
+                                    "height": 3,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "total_DB_size_in_GB", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 0,
+                                    "y": 12,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "blocked_sessions", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 6,
+                                    "y": 12,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "wait_event_AuroraRuntimeMain", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "wait_event_ClientWrite", ".", "." ],
+                                            [ ".", "wait_event_BgWriterMain", ".", "." ],
+                                            [ ".", "wait_event_LogicalLauncherMain", ".", "." ],
+                                            [ ".", "wait_event_CheckpointerMain", ".", "." ],
+                                            [ ".", "wait_event_Cpu", ".", "." ],
+                                            [ ".", "wait_event_BgWriterHibernate", ".", "." ],
+                                            [ ".", "wait_event_WalWriterMain", ".", "." ],
+                                            [ ".", "wait_event_AutoVacuumMain", ".", "." ],
+                                            [ ".", "wait_event_ClientRead", ".", "." ],
+                                            [ ".", "wait_event_WalSenderWaitForWAL", ".", "." ],
+                                            [ ".", "wait_event_BtreePage", ".", "." ],
+                                            [ ".", "wait_event_transactionid", ".", "." ],
+                                            [ ".", "wait_event_RelationMapRead", ".", "." ],
+                                            [ ".", "wait_event_buffer_content", ".", "." ],
+                                            [ ".", "wait_eventAuroraRuntimeMain", ".", "." ],
+                                            [ ".", "wait_event_WALWrite", ".", "." ],
+                                            [ ".", "wait_event_DataFileRead", ".", "." ],
+                                            [ ".", "wait_event_BgWorkerShutdown", ".", "." ],
+                                            [ ".", "wait_event_WALInitSync", ".", "." ],
+                                            [ ".", "wait_event_wal_insert", ".", "." ],
+                                            [ ".", "wait_event_WALSync", ".", "." ],
+                                            [ ".", "wait_event_DataFileWrite", ".", "." ],
+                                            [ ".", "wait_event_DataFileSync", ".", "." ],
+                                            [ ".", "wait_event_DataFileExtend", ".", "." ],
+                                            [ ".", "wait_event_WALWriteLock", ".", "." ],
+                                            [ ".", "wait_event_ProcArrayLock", ".", "." ],
+                                            [ ".", "wait_event_ExecuteGather", ".", "." ],
+                                            [ ".", "wait_event_lock_manager", ".", "." ],
+                                            [ ".", "wait_event_tuple", ".", "." ],
+                                            [ ".", "wait_event_ProcArrayGroupUpdate", ".", "." ],
+                                            [ ".", "wait_event_DataFileFlush", ".", "." ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "title": "wait events",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 18,
+                                    "y": 15,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": true,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "oldest_open_transaction", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 18,
+                                    "y": 27,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "n_tables_eligible_for_autovacuum", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 0,
+                                    "y": 18,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "Oldest_Replication_Slot_Lag_gb_behind", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "period": 60,
+                                        "stat": "Average",
+                                        "title": "Oldest Replication Slot Lag gb behind"
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 18,
+                                    "y": 21,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "oldest_open_idl_in_transaction", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 6,
+                                    "y": 18,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "db_load_cpu", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "db_load_none_cpu", ".", "." ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "title": "DB Load CPU VS  DB Load None CPU",
+                                        "period": 60,
+                                        "stat": "Average"
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 18,
+                                    "y": 33,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "bgwriter_buffers_backend", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "bgwriter_buffers_clean", ".", "." ],
+                                            [ ".", "bgwriter_maxwritten_clean", ".", "." ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "title": "bgwriter",
+                                        "period": 60,
+                                        "stat": "Average"
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 0,
+                                    "y": 24,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "checkpoints_timed", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "checkpoints_requested", ".", "." ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "stat": "Average",
+                                        "period": 60,
+                                        "title": "checkpoints"
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 0,
+                                    "y": 30,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ { "expression": "RATE(METRICS())", "label": "Rate", "id": "e1", "period": 60, "region": "${AWS::Region}" } ],
+                                            [ "PG Counter Metrics", "tup_updated", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm", { "id": "m1", "visible": false } ],
+                                            [ ".", "tup_inserted", ".", ".", { "id": "m2", "visible": false } ],
+                                            [ ".", "tup_deleted", ".", ".", { "id": "m3", "visible": false } ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "stat": "Average",
+                                        "period": 60,
+                                        "title": "Workload Rate - update / delete / insert"
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 6,
+                                    "y": 30,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "tup_updated", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "tup_inserted", ".", "." ],
+                                            [ ".", "tup_deleted", ".", "." ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "title": "Workload - update / insert / delete",
+                                        "stat": "Average",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 6,
+                                    "y": 36,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "tup_fetched", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "tup_returned", ".", "." ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "title": "Workload -  Tuple  fetched vs returned",
+                                        "stat": "Average",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 0,
+                                    "y": 36,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ { "expression": "RATE(METRICS())", "label": "Rate", "id": "e1", "period": 60, "region": "${AWS::Region}" } ],
+                                            [ "PG Counter Metrics", "tup_fetched", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm", { "id": "m1", "visible": false } ],
+                                            [ ".", "tup_returned", ".", ".", { "id": "m2", "visible": false } ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "stat": "Average",
+                                        "period": 60,
+                                        "title": "Workload - Rate - Tuple returned vs fetched"
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 6,
+                                    "y": 24,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ { "expression": "RATE(METRICS())", "label": "Rate", "id": "e1", "period": 60, "region": "${AWS::Region}" } ],
+                                            [ "PG Counter Metrics", "checkpoints_timed", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm", { "id": "m1", "visible": false } ],
+                                            [ ".", "checkpoints_requested", ".", ".", { "id": "m2", "visible": false } ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "stat": "Average",
+                                        "period": 60,
+                                        "title": "checkpoints- Rate - requested vs timed"
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 12,
+                                    "y": 15,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "xact_commit", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "xact_rollback", ".", "." ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "stat": "Average",
+                                        "period": 60,
+                                        "title": "Commit vs Rollback"
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 12,
+                                    "y": 21,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ { "expression": "RATE(METRICS())", "label": "Rate", "id": "e1", "period": 60, "region": "${AWS::Region}" } ],
+                                            [ "PG Counter Metrics", "xact_commit", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm", { "id": "m1", "visible": false } ],
+                                            [ ".", "xact_rollback", ".", ".", { "id": "m2", "visible": false } ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "stat": "Average",
+                                        "period": 60,
+                                        "title": "Rate - Commit vs Rollback"
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 12,
+                                    "y": 27,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "not_granted_lock", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "title": "Not_granted_lock ",
+                                        "stat": "Average",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 12,
+                                    "y": 33,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "xact_commit_ratio", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "title": "Commit Ratio",
+                                        "stat": "Average",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 18,
+                                    "y": 39,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "lock_mode_ExclusiveLock", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "lock_mode_AccessShareLock", ".", "." ],
+                                            [ ".", "lock_mode_AccessExclusiveLock", ".", "." ],
+                                            [ ".", "lock_mode_ShareLock", ".", "." ],
+                                            [ ".", "lock_mode_RowExclusiveLock", ".", "." ],
+                                            [ ".", "lock_mode_ShareUpdateExclusiveLock", ".", "." ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "stat": "Average",
+                                        "period": 60,
+                                        "title": "Lock Mode"
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 12,
+                                    "y": 39,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "lock_type_relation", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "lock_type_virtualxid", ".", "." ],
+                                            [ ".", "lock_type_transactionid", ".", "." ],
+                                            [ ".", "lock_type_object", ".", "." ],
+                                            [ ".", "lock_type_tuple", ".", "." ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "title": "Lock Type",
+                                        "period": 60,
+                                        "stat": "Average"
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 12,
+                                    "y": 18,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "oldest_mxid", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "autovacuum_multixact_freeze_max_age", ".", "." ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "stat": "Average",
+                                        "period": 60,
+                                        "title": "multixact (MXID)"
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 12,
+                                    "y": 24,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ { "expression": "RATE(METRICS())", "label": "Rate", "id": "e1" } ],
+                                            [ "PG Counter Metrics", "oldest_mxid", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm", { "id": "m1", "visible": false } ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "stat": "Average",
+                                        "period": 60,
+                                        "title": " multixact (MXID) Rate"
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 6,
+                                    "y": 12,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ { "expression": "RATE(METRICS())", "label": "Rate", "id": "e1" } ],
+                                            [ "PG Counter Metrics", "oldest_xid", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm", { "id": "m2", "visible": false } ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "period": 60,
+                                        "title": "XID Rate",
+                                        "stat": "Average"
+                                    }
+                                }
+                            ]
+                        }

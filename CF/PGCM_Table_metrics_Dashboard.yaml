@@ -1,0 +1,289 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Parameters:         
+  DBInstanceIdentifier:
+    Default: <DB Instance Identifier>
+    Description: The DB Instance Identifier
+    Type: String
+    AllowedPattern: .*
+  TableName:
+    Default: < Table Name >
+    Description: Table Name  
+    Type: String
+    AllowedPattern: .*                           
+Resources:       
+  Dashboard:
+    Type: "AWS::CloudWatch::Dashboard"
+    Properties:
+      DashboardName: !Sub ${DBInstanceIdentifier}_${TableName}_Table_pgcm
+      DashboardBody: !Sub |
+                        {
+                            "widgets": [
+                                {
+                                    "type": "metric",
+                                    "x": 6,
+                                    "y": 0,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "table_stat_autoanalyze_count_${TableName}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "table_stat_autovacuum_count_${TableName}", ".", "." ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "title": "autoanalyze & autovacuum count ${TableName} table",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 0,
+                                    "y": 0,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "table_stat_n_dead_tup_${TableName}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "table_stat_n_live_tup_${TableName}", ".", "." ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "title": "n_ dead & live tup ${TableName} table",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 12,
+                                    "y": 0,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "table_stat_dead_tup_percent_${TableName}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "title": "dead tup%  ${TableName} table",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 18,
+                                    "y": 12,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "table_stat_total_fts_scan_${TableName}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "table_stat_total_idx_scan_${TableName}", ".", "." ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "title": "fts & idx scan ${TableName} table",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 0,
+                                    "y": 12,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "table_stat_n_tup_ins_${TableName}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "table_stat_n_tup_upd_${TableName}", ".", "." ],
+                                            [ ".", "table_stat_n_tup_del_${TableName}", ".", "." ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "title": "n tup - ins & del & upd  ${TableName}  table",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 12,
+                                    "y": 6,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "table_stat_tup_ins_precent_${TableName}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ],
+                                            [ ".", "table_stat_tup_del_precent_${TableName}", ".", "." ],
+                                            [ ".", "table_stat_tup_upd_precent_${TableName}", ".", "." ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "title": "tup del & ins & upd % ${TableName} table",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 18,
+                                    "y": 0,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "table_stat_n_tup_hot_upd_${TableName}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "period": 60,
+                                        "title": "n_tup_hot_update ${TableName} table"
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 6,
+                                    "y": 12,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "metrics": [
+                                            [ "PG Counter Metrics", "table_stat_n_mod_since_analyze_${TableName}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                        ],
+                                        "region": "${AWS::Region}",
+                                        "period": 60
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 0,
+                                    "y": 18,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ { "expression": "RATE(METRICS())", "label": "Rate", "id": "e1", "region": "${AWS::Region}" } ],
+                                            [ "PG Counter Metrics", "table_stat_n_tup_ins_${TableName}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm", { "id": "m1", "visible": false } ],
+                                            [ ".", "table_stat_n_tup_upd_${TableName}", ".", ".", { "id": "m2", "visible": false } ],
+                                            [ ".", "table_stat_n_tup_del_${TableName}", ".", ".", { "id": "m3", "visible": false } ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "title": "n tup - Rate - ins & del & upd  ${TableName}  table",
+                                        "period": 60,
+                                        "stat": "Average"
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 18,
+                                    "y": 18,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ { "expression": "RATE(METRICS())", "label": "Rate", "id": "e1", "region": "${AWS::Region}" } ],
+                                            [ "PG Counter Metrics", "table_stat_total_fts_scan_${TableName}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm", { "id": "m1", "visible": false } ],
+                                            [ ".", "table_stat_total_idx_scan_${TableName}", ".", ".", { "id": "m2", "visible": false } ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "title": "fts & idx scan rate ${TableName} table",
+                                        "period": 60,
+                                        "stat": "Average"
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 18,
+                                    "y": 6,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ { "expression": "RATE(METRICS())", "label": "Rate", "id": "e1", "region": "${AWS::Region}" } ],
+                                            [ "PG Counter Metrics", "table_stat_n_tup_hot_upd_${TableName}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm", { "id": "m1", "visible": false } ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "period": 60,
+                                        "stat": "Average",
+                                        "title": "n_tup_hot_update Rate ${TableName}  table"
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 0,
+                                    "y": 6,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ { "expression": "RATE(METRICS())", "label": "Rate", "id": "e1", "region": "${AWS::Region}" } ],
+                                            [ "PG Counter Metrics", "table_stat_n_dead_tup_${TableName}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm", { "id": "m1", "visible": false } ],
+                                            [ ".", "table_stat_n_live_tup_${TableName}", ".", ".", { "id": "m2", "visible": false } ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "title": "n dead & live tup rate ${TableName} table",
+                                        "period": 60,
+                                        "stat": "Average"
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 6,
+                                    "y": 6,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ { "expression": "RATE(METRICS())", "label": "Rate", "id": "e1", "region": "${AWS::Region}" } ],
+                                            [ "PG Counter Metrics", "table_stat_autoanalyze_count_${TableName}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm", { "id": "m1", "visible": false } ],
+                                            [ ".", "table_stat_autovacuum_count_${TableName}", ".", ".", { "id": "m2", "visible": false } ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "title": "autoanalyze & autovacuum count Rate ${TableName} table",
+                                        "period": 60,
+                                        "stat": "Average"
+                                    }
+                                },
+                                {
+                                    "type": "metric",
+                                    "x": 12,
+                                    "y": 12,
+                                    "width": 6,
+                                    "height": 6,
+                                    "properties": {
+                                        "metrics": [
+                                            [ { "expression": "RATE(METRICS())", "label": "Rate", "id": "e1", "region": "${AWS::Region}" } ],
+                                            [ "PG Counter Metrics", "table_stat_tup_ins_precent_${TableName}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm", { "id": "m1", "visible": false } ],
+                                            [ ".", "table_stat_tup_del_precent_${TableName}", ".", ".", { "id": "m2", "visible": false } ],
+                                            [ ".", "table_stat_tup_upd_precent_${TableName}", ".", ".", { "id": "m3", "visible": false } ]
+                                        ],
+                                        "view": "timeSeries",
+                                        "stacked": false,
+                                        "region": "${AWS::Region}",
+                                        "title": "tup del & ins & upd % Rate ${TableName} table",
+                                        "period": 60,
+                                        "stat": "Average"
+                                    }
+                                }
+                            ]
+                        }

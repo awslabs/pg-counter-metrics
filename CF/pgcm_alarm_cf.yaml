@@ -1,0 +1,75 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Parameters:         
+  DBInstanceIdentifier:
+    Default: <DB Instance Identifier>
+    Description: The DB Instance Identifier
+    Type: String
+    AllowedPattern: .*                         
+Resources:       
+  PgcmStatusAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${DBInstanceIdentifier}_PGCM_Status_Alarm
+      AlarmDescription: if this mertic in alram this mean PGCM is not working
+      ComparisonOperator: GreaterThanOrEqualToThreshold 
+      Threshold: '1'
+      Period: '60'
+      EvaluationPeriods: '3'
+      Namespace: 'PG Counter Metrics'
+      Statistic: Average
+      TreatMissingData: notBreaching
+      MetricName: PG_Counter_Metrics_Error_Count
+      Dimensions: 
+        - Name: DBInstanceIdentifier
+          Value: !Sub ${DBInstanceIdentifier}_pgcm
+  InvalidIndexesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${DBInstanceIdentifier}_invalid_indexes_PGCM_Alarm
+      AlarmDescription: invalid indexes count Equal or over 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold 
+      Threshold: '1'
+      Period: '60'
+      EvaluationPeriods: '5'
+      Namespace: 'PG Counter Metrics'
+      Statistic: Average
+      MetricName: invalid_indexes
+      Dimensions: 
+        - Name: DBInstanceIdentifier
+          Value: !Sub ${DBInstanceIdentifier}_pgcm
+  InactiveReplicationSlotAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${DBInstanceIdentifier}_Inactive_Replication_Slot_PGCM_Alarm
+      AlarmDescription: Inactive Replication Slot count Equal or over 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold 
+      Threshold: '1'
+      Period: '60'
+      EvaluationPeriods: '15'
+      Namespace: 'PG Counter Metrics'
+      Statistic: Average
+      MetricName: Inactive_replication_slot
+      Dimensions: 
+        - Name: DBInstanceIdentifier
+          Value: !Sub ${DBInstanceIdentifier}_pgcm
+  XidWraparoundAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${DBInstanceIdentifier}_Xid_Wraparound_PGCM_Alarm
+      AlarmDescription: Xid Percent Towards Wraparound is over 50% (1B)
+      ComparisonOperator: GreaterThanOrEqualToThreshold 
+      Threshold: '50'
+      Period: '60'
+      EvaluationPeriods: '15'
+      Namespace: 'PG Counter Metrics'
+      Statistic: Average
+      MetricName: Xid_Percent_Towards_Wraparound
+      Dimensions: 
+        - Name: DBInstanceIdentifier
+          Value: !Sub ${DBInstanceIdentifier}_pgcm                               
+
+

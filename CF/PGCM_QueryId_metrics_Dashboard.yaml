@@ -1,0 +1,410 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Parameters:         
+  DBInstanceIdentifier:
+    Default: <DB Instance Identifier>
+    Description: The DB Instance Identifier
+    Type: String
+    AllowedPattern: .*
+  QueryId:
+    Default: < Query Id >
+    Description: Query Id  
+    Type: String
+    AllowedPattern: .*                           
+Resources:       
+  Dashboard:
+    Type: "AWS::CloudWatch::Dashboard"
+    Properties:
+      DashboardName: !Sub ${DBInstanceIdentifier}_${QueryId}_queryid_pgcm
+      DashboardBody: !Sub |
+                        {
+                           "widgets": [
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 0,
+                                   "x": 0,
+                                   "type": "metric",
+                                   "properties": {
+                                       "metrics": [
+                                           [ "PG Counter Metrics", "pg_stat_statements_calls_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                       ],
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "region": "${AWS::Region}",
+                                       "stat": "Average",
+                                       "period": 60,
+                                       "title": "calls queryid ${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 6,
+                                   "x": 0,
+                                   "type": "metric",
+                                   "properties": {
+                                       "metrics": [
+                                           [ { "expression": "RATE(METRICS())", "label": "Rate", "id": "e1", "period": 60, "region": "${AWS::Region}" } ],
+                                           [ "PG Counter Metrics", "pg_stat_statements_calls_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm", { "id": "m1", "visible": false } ]
+                                       ],
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "region": "${AWS::Region}",
+                                       "stat": "Average",
+                                       "period": 60,
+                                       "start": "-PT3H",
+                                       "end": "P0D",
+                                       "title": "Rate - Calls - queryid ${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 0,
+                                   "x": 6,
+                                   "type": "metric",
+                                   "properties": {
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "region": "${AWS::Region}",
+                                       "stat": "Average",
+                                       "period": 60,
+                                       "start": "-PT3H",
+                                       "end": "P0D",
+                                       "metrics": [
+                                           [ "PG Counter Metrics", "pg_stat_statements_db_time_percent_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                       ],
+                                       "title": "db_time_percent_queryid_${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 0,
+                                   "x": 12,
+                                   "type": "metric",
+                                   "properties": {
+                                       "metrics": [
+                                           [ "PG Counter Metrics", "pg_stat_statements_rows_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                       ],
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "region": "${AWS::Region}",
+                                       "stat": "Average",
+                                       "period": 60,
+                                       "title": "rows - queryid ${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 6,
+                                   "x": 12,
+                                   "type": "metric",
+                                   "properties": {
+                                       "metrics": [
+                                           [ { "expression": "RATE(METRICS())", "label": "Rate", "id": "e1" } ],
+                                           [ "PG Counter Metrics", "pg_stat_statements_rows_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm", { "id": "m1", "visible": false } ]
+                                       ],
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "region": "${AWS::Region}",
+                                       "stat": "Average",
+                                       "period": 60,
+                                       "title": "Rate - rows - queryid ${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 0,
+                                   "x": 18,
+                                   "type": "metric",
+                                   "properties": {
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "metrics": [
+                                           [ "PG Counter Metrics", "pg_stat_statements_rows_per_exec_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                       ],
+                                       "region": "${AWS::Region}",
+                                       "title": "Rows per exec - queryid_${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 6,
+                                   "x": 18,
+                                   "type": "metric",
+                                   "properties": {
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "metrics": [
+                                           [ "PG Counter Metrics", "pg_stat_statements_avg_time_msec_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                       ],
+                                       "region": "${AWS::Region}",
+                                       "title": "avg_time_msec_queryid_${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 6,
+                                   "x": 6,
+                                   "type": "metric",
+                                   "properties": {
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "metrics": [
+                                           [ "PG Counter Metrics", "pg_stat_statements_max_time_msec_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                       ],
+                                       "region": "${AWS::Region}",
+                                       "title": "max_time_msec_queryid_${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 12,
+                                   "x": 18,
+                                   "type": "metric",
+                                   "properties": {
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "metrics": [
+                                           [ "PG Counter Metrics", "pg_stat_statements_total_time_msec_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                       ],
+                                       "region": "${AWS::Region}",
+                                       "title": "total_time_msec_queryid_${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 12,
+                                   "x": 12,
+                                   "type": "metric",
+                                   "properties": {
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "metrics": [
+                                           [ "PG Counter Metrics", "pg_stat_statements_min_time_msec_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                       ],
+                                       "region": "${AWS::Region}",
+                                       "title": "min_time_msec_queryid_${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 12,
+                                   "x": 6,
+                                   "type": "metric",
+                                   "properties": {
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "metrics": [
+                                           [ "PG Counter Metrics", "pg_stat_statements_stddev_time_msec_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                       ],
+                                       "region": "${AWS::Region}",
+                                       "title": "stddev_time_msec_queryid_${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 12,
+                                   "x": 0,
+                                   "type": "metric",
+                                   "properties": {
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "metrics": [
+                                           [ "PG Counter Metrics", "pg_stat_statements_shared_blks_hit_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                       ],
+                                       "region": "${AWS::Region}",
+                                       "title": "shared_blks_hit_queryid_${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 18,
+                                   "x": 18,
+                                   "type": "metric",
+                                   "properties": {
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "metrics": [
+                                           [ "PG Counter Metrics", "pg_stat_statements_shared_blks_read_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                       ],
+                                       "region": "${AWS::Region}",
+                                       "title": "shared_blks_read_queryid_${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 18,
+                                   "x": 12,
+                                   "type": "metric",
+                                   "properties": {
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "metrics": [
+                                           [ "PG Counter Metrics", "pg_stat_statements_shared_blks_dirtied_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                       ],
+                                       "region": "${AWS::Region}",
+                                       "title": "shared_blks_dirtied_queryid_${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 18,
+                                   "x": 6,
+                                   "type": "metric",
+                                   "properties": {
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "metrics": [
+                                           [ "PG Counter Metrics", "pg_stat_statements_shared_blks_written_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                       ],
+                                       "region": "${AWS::Region}",
+                                       "title": "shared_blks_written_queryid_${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 18,
+                                   "x": 0,
+                                   "type": "metric",
+                                   "properties": {
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "metrics": [
+                                           [ "PG Counter Metrics", "pg_stat_statements_local_blks_hit_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                       ],
+                                       "region": "${AWS::Region}",
+                                       "title": "local_blks_hit_queryid_${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 24,
+                                   "x": 18,
+                                   "type": "metric",
+                                   "properties": {
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "metrics": [
+                                           [ "PG Counter Metrics", "pg_stat_statements_local_blks_read_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                       ],
+                                       "region": "${AWS::Region}",
+                                       "title": "local_blks_read_queryid_${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 24,
+                                   "x": 12,
+                                   "type": "metric",
+                                   "properties": {
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "metrics": [
+                                           [ "PG Counter Metrics", "pg_stat_statements_local_blks_dirtied_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                       ],
+                                       "region": "${AWS::Region}",
+                                       "title": "local_blks_dirtied_queryid_${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 24,
+                                   "x": 6,
+                                   "type": "metric",
+                                   "properties": {
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "metrics": [
+                                           [ "PG Counter Metrics", "pg_stat_statements_local_blks_written_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                       ],
+                                       "region": "${AWS::Region}",
+                                       "title": "local_blks_written_queryid_${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 24,
+                                   "x": 0,
+                                   "type": "metric",
+                                   "properties": {
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "metrics": [
+                                           [ "PG Counter Metrics", "pg_stat_statements_temp_blks_read_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                       ],
+                                       "region": "${AWS::Region}",
+                                       "title": "temp_blks_read_queryid_${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 30,
+                                   "x": 18,
+                                   "type": "metric",
+                                   "properties": {
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "metrics": [
+                                           [ "PG Counter Metrics", "pg_stat_statements_temp_blks_written_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                       ],
+                                       "region": "${AWS::Region}",
+                                       "title": "temp_blks_written_queryid_${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 30,
+                                   "x": 12,
+                                   "type": "metric",
+                                   "properties": {
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "metrics": [
+                                           [ "PG Counter Metrics", "pg_stat_statements_blk_read_time_msec_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                       ],
+                                       "region": "${AWS::Region}",
+                                       "title": "blk_read_time_msec_queryid_${QueryId}"
+                                   }
+                               },
+                               {
+                                   "height": 6,
+                                   "width": 6,
+                                   "y": 30,
+                                   "x": 6,
+                                   "type": "metric",
+                                   "properties": {
+                                       "view": "timeSeries",
+                                       "stacked": false,
+                                       "metrics": [
+                                           [ "PG Counter Metrics", "pg_stat_statements_blk_write_time_msec_queryid_${QueryId}", "DBInstanceIdentifier", "${DBInstanceIdentifier}_pgcm" ]
+                                       ],
+                                       "region": "${AWS::Region}",
+                                       "title": "blk_write_time_msec_queryid_${QueryId}"
+                                   }
+                               }
+                           ]
+                        }
