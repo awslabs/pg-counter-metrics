@@ -350,7 +350,7 @@ aws s3 ls s3://pgcm/  --human-readable --profile ${AWS_PROFILE} --output table
 
 **Note**: 
 - To be able to finish the next steps you need to get some information  about the database like VPC , Security Group , Port and DB Resource Id.
-- you will need the DB Resource Id if you will use the IADM DB Auth 
+- you will need the DB Resource Id if you will use the IAM DB Auth 
 
 set environment variables: 
 
@@ -691,6 +691,23 @@ pg_monitor	Read/execute various monitoring views and functions. This role is a m
 - will PGCM cause any long running query ?
 
 > No , PGCM will set statement_timeout = 10sec in session level , if there is any query take more than 10 sec it will be terminated automatically
+
+- Dose PGCM support/use  SSL ?
+
+> Yes it does,  PGCM use RDS SSL by default and it is using the following certificate https://s3.amazonaws.com/rds-downloads/rds-ca-2019-root.pem.
+>
+> Root cert location and name : pgcm/certs/commercial/rds-ca-2019-root.pem
+>
+> if you want to use different certificate please refer to RDS docs https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
+>
+> please update pgcm/rds_config.py with the new certificate name 
+```
+# RDS CA CERT
+# for more info https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
+CA_CERT="certs/commercial/rds-ca-2019-root.pem"
+```
+
+
 
 ## Security
 
