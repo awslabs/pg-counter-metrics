@@ -85,8 +85,8 @@ There are three type of metrics
 |40|checkpoints_requested|Number of requested checkpoints that have been performed|
 |41|checkpoints_timed|Number of scheduled checkpoints that have been performed|
 |42|connections_utilization|100*( total_connections / max_connections)|
-|43|Oldest_Replication_Slot_Lag_gb_behind|The lagging size of the Oldest Replication Slot|
-|44|Oldest_Replication_Slot_Lag_gb_behind_per_slot_(slot_name)|The lagging size for each Replication Slot|
+|43|Oldest_Replication_Slot_Lag|The lagging size in bytes of the Oldest Replication Slot|
+|44|Replication_Slot_Lag_per_slot_(slot_name)|The lagging size in bytes for each Replication Slot|
 |45|DBLoadCPU|total number of active sessions waiting on CPU|
 |46|DBLoadNoneCPU|total number of active sessions waiting on None CPU wait event|
 |47|bgwriter_buffers_backend|Number of buffers written directly by a backend|

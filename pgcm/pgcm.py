@@ -1,5 +1,5 @@
 # +-----------------------------------------------------------------------------------+
-# |                            PG Counter Metrics (PGCM) V1.8                         |
+# |                            PG Counter Metrics (PGCM) V1.9                         |
 # |  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.               |
 # |  SPDX-License-Identifier: Apache-2.0                                              |
 # |  -- Author : Mohamed Ali                                                          |
@@ -129,8 +129,8 @@ query_tup_deleted = 'select tup_deleted from  pg_stat_database where datname = (
 query_tup_inserted = 'select tup_inserted from  pg_stat_database where datname = (select current_database());'
 query_checkpoints_requested = 'select checkpoints_req as "checkpoints_requested" from pg_stat_bgwriter;'
 query_checkpoints_timed = 'select checkpoints_timed from pg_stat_bgwriter;'
-query_Oldest_Replication_Slot_Lag_gb_behind = """select
-coalesce(max(round(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) / 1024 / 1024 / 1024, 2)),0) AS Oldest_Replication_Slot_Lag_GB_behind
+query_Oldest_Replication_Slot_Lag = """select
+coalesce(max(round(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) , 2)),0) AS Oldest_Replication_Slot_Lag
 from pg_replication_slots;"""
 query_oldest_open_idl_in_transaction = """select coalesce(round((hs + ms + s)::numeric,2),0) as max_xact_duration_in_s
 from (select 
@@ -144,9 +144,9 @@ WHERE state  = 'idle in transaction'
 and xact_start is not null
 and query not like '%autovacuum:%'
 and query not like '%vacuum%') as max ) as s ;"""
-query_Oldest_Replication_Slot_Lag_gb_behind_per_slot = """select row_to_json(t) from (select array_to_json(array_agg(row_to_json(d))) from (
+query_Replication_Slot_Lag_per_slot = """select row_to_json(t) from (select array_to_json(array_agg(row_to_json(d))) from (
 select slot_name,
-coalesce(round(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) / 1024 / 1024 / 1024, 2),0) AS Oldest_Replication_Slot_Lag_GB_behind
+coalesce(round(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) , 2),0) AS Replication_Slot_Lag
 from pg_replication_slots
 ) d ) t;"""
 query_count_replication_slots = "select count (*) from pg_replication_slots;"
@@ -197,7 +197,7 @@ logger_debug.setLevel(logging.INFO)
         
 def handler(event, context):
     logger.info( "Starting PG metric Process on " + rds_host)
-    logger.info( "Metric Dimension Name: "+ metric_dimension_name)
+    logger.info( "Metric Dimension Name: "+ metric_name)
     logger.info( "Database: " + db_name)
     logger.info( "Database User Name: " + name)
     logger.info( "Database Port: " + str(port))
@@ -559,9 +559,9 @@ def handler(event, context):
         result_checkpoints_timed = executeSQL(conn, query_checkpoints_timed)
         logger_debug.debug("result_checkpoints_timed = " + str(result_checkpoints_timed[0][0]))
    
-        logger_debug.debug("Executing result_Oldest_Replication_Slot_Lag_gb_behind")
-        result_Oldest_Replication_Slot_Lag_gb_behind = executeSQL(conn, query_Oldest_Replication_Slot_Lag_gb_behind)
-        logger_debug.debug("result_Oldest_Replication_Slot_Lag_gb_behind = " + str(result_Oldest_Replication_Slot_Lag_gb_behind[0][0]))
+        logger_debug.debug("Executing result_Oldest_Replication_Slot_Lag")
+        result_Oldest_Replication_Slot_Lag = executeSQL(conn, query_Oldest_Replication_Slot_Lag)
+        logger_debug.debug("result_Oldest_Replication_Slot_Lag = " + str(result_Oldest_Replication_Slot_Lag[0][0]))
 
         logger_debug.debug("Executing result_oldest_open_idl_in_transaction")
         result_oldest_open_idl_in_transaction = executeSQL(conn, query_oldest_open_idl_in_transaction)
@@ -571,16 +571,16 @@ def handler(event, context):
         result_count_replication_slots = executeSQL(conn, query_count_replication_slots)
         logger_debug.debug("result_count_replication_slots = " + str(result_count_replication_slots[0][0]))
  
-        logger_debug.debug("Executing result_Oldest_Replication_Slot_Lag_gb_behind_per_slot")
-        result_Oldest_Replication_Slot_Lag_gb_behind_per_slot = executeSQL(conn, query_Oldest_Replication_Slot_Lag_gb_behind_per_slot)
+        logger_debug.debug("Executing result_Replication_Slot_Lag_per_slot")
+        result_Replication_Slot_Lag_per_slot = executeSQL(conn, query_Replication_Slot_Lag_per_slot)
         if result_count_replication_slots[0][0] > 0: 
-           json_result_Oldest_Replication_Slot_Lag_gb_behind_per_slot={}
-           for k in result_Oldest_Replication_Slot_Lag_gb_behind_per_slot[0] :
+           json_result_Replication_Slot_Lag_per_slot={}
+           for k in result_Replication_Slot_Lag_per_slot[0] :
                 #logger.info(k)
                 for d in k['array_to_json']:
                    #logger.info(d)
-                   json_result_Oldest_Replication_Slot_Lag_gb_behind_per_slot[d["slot_name"]]=d["oldest_replication_slot_lag_gb_behind"]
-           logger_debug.debug("json_result_Oldest_Replication_Slot_Lag_gb_behind_per_slot = " + str(json_result_Oldest_Replication_Slot_Lag_gb_behind_per_slot))
+                   json_result_Replication_Slot_Lag_per_slot[d["slot_name"]]=d["replication_slot_lag"]
+           logger_debug.debug("json_result_Replication_Slot_Lag_per_slot = " + str(json_result_Replication_Slot_Lag_per_slot))
         else:
             logger_debug.debug("---------> there is no Replication Slots in the Database")
             pass
@@ -1786,19 +1786,19 @@ def handler(event, context):
             ],
             Namespace='PG Counter Metrics'
         )
-        logger_debug.debug("starting  cloudwatch.put_metric_data.Oldest_Replication_Slot_Lag_gb_behind")
+        logger_debug.debug("starting  cloudwatch.put_metric_data.Oldest_Replication_Slot_Lag")
         cloudwatch.put_metric_data(
             MetricData=[
                 {
-                    'MetricName': 'Oldest_Replication_Slot_Lag_gb_behind',
+                    'MetricName': 'Oldest_Replication_Slot_Lag',
                     'Dimensions': [
                         {
                             'Name': 'DBInstanceIdentifier',
                             'Value': rds_config.metric_name
                         },
                     ],
-                    'Unit': 'Gigabits',
-                    'Value': result_Oldest_Replication_Slot_Lag_gb_behind[0][0]
+                    'Unit': 'Bytes',
+                    'Value': result_Oldest_Replication_Slot_Lag[0][0]
                 },
             ],
             Namespace='PG Counter Metrics'
@@ -1820,23 +1820,23 @@ def handler(event, context):
             ],
             Namespace='PG Counter Metrics'
         )
-        logger_debug.debug("starting  cloudwatch.put_metric_data.Oldest_Replication_Slot_Lag_gb_behind_per_slot")
+        logger_debug.debug("starting  cloudwatch.put_metric_data.Replication_Slot_Lag_per_slot")
         if result_count_replication_slots[0][0] > 0:
-            for k in json_result_Oldest_Replication_Slot_Lag_gb_behind_per_slot:
+            for k in json_result_Replication_Slot_Lag_per_slot:
                 slot_name=k
-                oldest_replication_slot_lag_gb_behind=json_result_Oldest_Replication_Slot_Lag_gb_behind_per_slot[k]
+                replication_slot_lag=json_result_Replication_Slot_Lag_per_slot[k]
                 cloudwatch.put_metric_data(
                     MetricData=[
                         {
-                           'MetricName': "Oldest_Replication_Slot_Lag_gb_behind_"+slot_name ,
+                           'MetricName': "Replication_Slot_Lag_"+slot_name ,
                             'Dimensions': [
                                 {
                                     'Name': 'DBInstanceIdentifier',
                                     'Value': rds_config.metric_name
                                 },
                            ],
-                            'Unit': 'Gigabits',
-                            'Value': oldest_replication_slot_lag_gb_behind
+                            'Unit': 'Bytes',
+                            'Value': replication_slot_lag
                         },
                     ],
                     Namespace='PG Counter Metrics'

@@ -63,5 +63,6 @@ else:
 
 # RDS CA CERT
 # for more info https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
-CA_CERT="certs/commercial/rds-ca-2019-root.pem"
+#CA_CERT="certs/commercial/rds-ca-2019-root.pem"
+CA_CERT="certs/commercial/global-bundle.pem"
 
